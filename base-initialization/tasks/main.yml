@@ -1,0 +1,30 @@
+---
+
+- name: Upgrade system
+  apt:
+    update_cache: true
+    upgrade: 'yes'
+  when:
+    - base_initialization_upgrade_system == true
+
+- name: Update apt cache
+  apt:
+    update_cache: true
+  when:
+    - base_initialization_upgrade_system == false
+
+- name: Install apt packages
+  apt:
+    pkg: "{{ base_initialization_install_list }}"
+  when: base_initialization_install_list|length > 0
+
+- name: Install pip packages
+  pip:
+    name: "{{ base_initialization_pip_install_list }}"
+  when: base_initialization_pip_install_list|length > 0
+
+## Europe/Samara, Europe/Moscow
+- name: Set time zone to '{{ base_initialization_timezone }}'
+  shell: "timedatectl set-timezone {{ base_initialization_timezone }}"
+  when:
+    - base_initialization_timezone != ""

@@ -1,0 +1,47 @@
+---
+# defaults file for docker-compose-run
+
+docker_compose_run_services_list: ""
+
+# Variable 'docker_compose_run_local_common_services_dir' is depricated.
+# Use variable 'docker_compose_run_local_services_dir'
+docker_compose_run_local_common_services_dir: "."
+docker_compose_run_local_services_dir: "{{ docker_compose_run_local_common_services_dir }}"
+
+docker_compose_run_remote_services_dir: "/opt/services"
+
+# Этот префикс добавляется в название сервиса на таргет системе
+docker_compose_run_remote_service_prefix: ""
+
+
+# Что с сервисом должна сделать эта роль:
+# present *
+# present-and-wait-until-end *
+# absent *
+# absent-and-delete *
+# copy *
+# pull *
+# run-once
+docker_compose_run_action: present
+
+
+docker_compose_run_registry_hostname: ""
+docker_compose_run_registry_username: ""
+docker_compose_run_registry_password: ""
+docker_compose_run_registry_login_befor: no
+docker_compose_run_registry_logout_after: no
+
+
+# Пауза в секундах перед выполнением роли
+docker_compose_run_timeout_befor:
+  seconds: 0
+  message: "Wait a few seconds"
+
+# Пауза в секундах после выполнения роли
+docker_compose_run_timeout_after:
+  seconds: 0
+  message: "Wait a few seconds"
+
+# Передавать или нет docker images с локального хоста на удалённый.
+# Позволяет отказаться от использования доступа удалённого хоста к офисному docker registry.
+docker_compose_run_transfer_images: false

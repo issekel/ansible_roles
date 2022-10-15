@@ -1,0 +1,8 @@
+---
+
+- name: Replace variables in file '{{ item_file.path }}'
+  replace:
+    path: "{{ item_file.path }}"
+    regexp: "{{ item.rewrite.regexp }}"
+    replace: "{{ item.rewrite.replace }}"
+  loop: "{{ docker_compose_run_rewrite_list }}"

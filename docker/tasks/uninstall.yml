@@ -1,0 +1,52 @@
+---
+
+- name: Получение последней версии пакета docker-ce в репозитории
+  shell: "apt-cache madison docker-ce | head -1 | awk '{print $3}'"
+  register: docker_repository_last_version
+  changed_when: false
+  when: docker_package_version|length == 0
+
+- name: Если не указана конкретная версия docker-ce, то использовать последную версию из репозитория
+  set_fact:
+    docker_package_version: "{{ docker_repository_last_version.stdout }}"
+  when: docker_package_version|length == 0
+
+- name: Последняя версия docker-ce в репозитории
+  debug:
+    var: docker_repository_last_version.stdout
+  when: docker_package_version|length == 0
+
+- name: Получение списка установленных пакетов
+  ansible.builtin.package_facts:
+    manager: auto
+
+- name: Проверка установлена ли версия '{{ docker_package_version }}'
+  shell: "dpkg-query -W -f '${Version}\n' docker-ce"
+  register: docker_current_version
+  changed_when: docker_package_version != docker_current_version.stdout
+  when: ansible_facts.packages['docker-ce'] is defined
+
+- block:
+    - name: Получение списка systemd.services
+      service_facts:
+
+    - name: Остановка docker.service
+      systemd:
+        name: '{{ item }}'
+        state: stopped
+        force: yes
+      loop:
+        - docker.service
+        - docker.socket
+      when: ansible_facts.services['docker.service'] is defined
+
+    - name: Удаление предыдущей версии docker
+      apt:
+        name:
+          - docker-*
+        purge: yes
+        state: absent
+        autoremove: yes
+  when:
+    - ansible_facts.packages['docker-ce'] is defined
+    - docker_package_version != docker_current_version.stdout

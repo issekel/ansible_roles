@@ -1,0 +1,8 @@
+---
+# defaults file for base-initialization
+
+base_initialization_upgrade_system: false
+base_initialization_timezone: ""
+
+base_initialization_install_list:
+base_initialization_pip_install_list: []

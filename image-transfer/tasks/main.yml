@@ -1,0 +1,19 @@
+---
+
+# - name: Проверка входит ли локальный пользователь в группу docker.
+#   shell: |
+#     groups | grep -w "docker"
+#   register: docker_group
+#   changed_when: false
+#   failed_when: docker_group.stdout == ''
+
+- name: Список docker images
+  debug:
+    var: image_transfer_list
+  run_once: true
+
+- include_tasks: handler-remote-host.yml
+  loop: "{{ image_transfer_list }}"
+  loop_control:
+    loop_var: current_image
+

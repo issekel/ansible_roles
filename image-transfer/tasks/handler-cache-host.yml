@@ -1,0 +1,46 @@
+---
+
+
+- name: Проверка, есть ли архив '{{ image_transfer_cache_path }}/{{ current_image_replace_name }}.tgz' на хосте с кэшем.
+  stat:
+    path: '{{ image_transfer_cache_path }}/{{ current_image_replace_name }}.tgz'
+  register: cache_tgz_exists
+  delegate_to: "{{ image_transfer_cache_host }}"
+  become: no
+  run_once: true
+  changed_when: not cache_tgz_exists.stat.exists
+
+
+- name: Создание директории "{{ image_transfer_cache_path }}" на хосте с кэшем.
+  file:
+    path: "{{ image_transfer_cache_path }}"
+    state: directory
+    recurse: yes
+  delegate_to: "{{ image_transfer_cache_host }}"
+  become: no
+  run_once: true
+  when: not cache_tgz_exists.stat.exists
+
+
+- name: Загружает docker images на локальный хост
+  include_tasks: handler-local-host.yml
+  when: not cache_tgz_exists.stat.exists
+
+
+- name: Копирование архива "{{ image_transfer_local_path }}/{{ current_image_replace_name }}.tgz" c локального хоста на кэширующий.
+  copy:
+    src: "{{ image_transfer_local_path }}/{{ current_image_replace_name }}.tgz"
+    dest: "{{ image_transfer_cache_path }}/{{ current_image_replace_name }}.tgz"
+  delegate_to: "{{ image_transfer_cache_host }}"
+  become: no
+  run_once: true
+  when: not cache_tgz_exists.stat.exists
+
+
+### Не копирует через другие IP-адреса
+- name: Копирование '{{ image_transfer_cache_path }}/{{ current_image_replace_name }}.tgz' с кэширующего хоста на удалённый.
+  synchronize:
+    src: "{{ image_transfer_cache_path }}/{{ current_image_replace_name }}.tgz"
+    dest: "{{ image_transfer_remote_path }}/{{ current_image_replace_name }}.tgz"
+  delegate_to: "{{ image_transfer_cache_host }}"
+  become: no

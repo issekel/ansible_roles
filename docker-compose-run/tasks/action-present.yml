@@ -1,0 +1,166 @@
+---
+
+- name: Wait {{ docker_compose_run_timeout_befor.seconds }} seconds before continue
+  pause:
+    seconds: "{{ docker_compose_run_timeout_befor.seconds }}"
+    prompt: "{{ docker_compose_run_timeout_befor.message }}"
+  when: docker_compose_run_timeout_befor.seconds > 0
+
+
+- name: "Checking if configuration for '{{ service }}' exist"
+  stat:
+    path: "{{ docker_compose_run_local_services_dir }}/{{ service }}"
+  register: stat_local_service_dir
+  delegate_to: 127.0.0.1
+  become: no
+
+- name: Exit if service '{{ service }}' not found
+  fail:
+    msg: Service '{{ service }}' not fount in '{{ docker_compose_run_local_services_dir }}'
+  when: stat_local_service_dir.stat.exists == false
+
+
+# Если переменная 'docker_compose_run_local_services_dir' задана с начальными './', то удаляем их.
+- name: Remove begining './' from path '{{ docker_compose_run_local_services_dir }}' if it present
+  set_fact:
+    local_services_dir_trimmed: "{{ docker_compose_run_local_services_dir | regex_replace('^./', '') }}"
+
+
+
+# Список директорий используется для создания таких же директорий на целевом хосте
+- name: Get directory list for service '{{ service }}'
+  find:
+    path: "{{ docker_compose_run_local_services_dir }}/{{ service }}"
+    file_type: directory
+    hidden: yes
+    recurse: yes
+  register: find_list_local_dirs
+  delegate_to: 127.0.0.1
+  become: no
+
+# - name: Print 'find_list_local_dirs'
+#   debug:
+#     msg: "{{ item.path }}"
+#   loop: "{{ find_list_local_dirs.files }}"
+
+- name: Create new list
+  set_fact:
+    list_service_sub_dirs: []
+
+- name: Parsing path find_list_local_dirs and save only sub-directories in service '{{ service }}'
+  set_fact:
+    list_service_sub_dirs: "{{ list_service_sub_dirs }} + [ \"{{ item.path | replace( local_services_dir_trimmed + '/', '' ) | replace( service + '/', '' ) }}\" ]"
+  loop: "{{ find_list_local_dirs.files }}"
+
+# - name: Print 'list_service_sub_dirs'
+#   debug:
+#     msg: "{{ item }}"
+#   loop: "{{ list_service_sub_dirs }}"
+
+- name: Create directories for service '{{ remote_service_dir_with_prefix }}'
+  file:
+    path: "{{ remote_services_dir_with_prefix }}/{{ remote_service_dir_with_prefix }}"
+    state: directory
+
+- name: Create sub-directories for service '{{ remote_service_dir_with_prefix }}' if needed
+  file:
+    path: "{{ remote_services_dir_with_prefix }}/{{ remote_service_dir_with_prefix }}/{{ item }}"
+    state: directory
+  loop: "{{ list_service_sub_dirs }}"
+
+
+
+# Список файлов используется для копирования на целевой хост с помощью модуля template
+- name: Get files list for service '{{ service }}'
+  find:
+    path: "{{ docker_compose_run_local_services_dir }}/{{ service }}"
+    file_type: file
+    hidden: yes
+    recurse: yes
+  register: find_list_local_files
+  delegate_to: 127.0.0.1
+  become: no
+
+# - name: Print 'find_list_local_files'
+#   debug:
+#     msg: "{{ item.path }}"
+#   loop: "{{ find_list_local_files.files }}"
+
+- name: Create new list_service_files
+  set_fact:
+    list_service_files: []
+
+- name: Parsing path find_list_local_files for '{{ service }}'
+  set_fact:
+    list_service_files: "{{ list_service_files }} + [ \"{{ item.path | replace( local_services_dir_trimmed + '/', '' ) | replace( service + '/', '' ) }}\" ]"
+  loop: "{{ find_list_local_files.files }}"
+
+# - name: Print 'list_service_files'
+#   debug:
+#     msg: "{{ item }}"
+#   loop: "{{ list_service_files }}"
+
+
+- name: "Copy template Jinja2 configuration for '{{ service }}' service"
+  template:
+    src: "{{ docker_compose_run_local_services_dir }}/{{ service }}/{{ item }}"
+    dest: "{{ remote_services_dir_with_prefix }}/{{ remote_service_dir_with_prefix }}/{{ item }}"
+    owner: "root"
+    mode: "preserve"
+  loop: "{{ list_service_files }}"
+
+
+
+# Блок для передачи docker images с локального хоста на удалённый.
+# Если на локальном хосте имиджа нет, то он загружается из репозитория.
+# Имиджы выгружаются в файлы, архивируются и копируются на удалённый хост.
+# После выполнения все временные файлы и директории удаляются.
+
+- name: Block for image transfer
+  block:
+
+    - name: Set variable 'directory_with_docker_compose_file' to "{{ remote_services_dir_with_prefix }}/{{ remote_service_dir_with_prefix }}"
+      set_fact:
+        directory_with_docker_compose_file: "{{ remote_services_dir_with_prefix }}/{{ remote_service_dir_with_prefix }}"
+
+    - name: Получение списка имиджей из docker-compose.yml
+      shell: |
+        cat "{{ directory_with_docker_compose_file }}/docker-compose.yml" | grep -e '^[[:blank:]]*[^[:blank:]#;]' | grep -e ' image: ' | awk '{print $2}' | uniq
+      register: docker_compose_file_images_list
+      changed_when: false
+
+    - name: Run image transfer role
+      include_role:
+        name: image-transfer
+      vars:
+        image_transfer_list: "{{ docker_compose_file_images_list.stdout_lines }}"
+
+  when:
+    - docker_compose_run_transfer_images|bool == true
+    - docker_compose_run_action == 'present' or
+      docker_compose_run_action == 'present-and-wait-until-end' or
+      docker_compose_run_action == 'pull'
+
+- name: Pull docker image for service '{{ service }}'
+  shell: |
+    cd "{{ remote_services_dir_with_prefix }}/{{ remote_service_dir_with_prefix }}"
+    docker-compose pull
+  when: docker_compose_run_action == 'pull'
+
+- name: Run service '{{ service }}' (Detached mode)
+  shell: |
+    cd "{{ remote_services_dir_with_prefix }}/{{ remote_service_dir_with_prefix }}"
+    docker-compose up -d
+  when: docker_compose_run_action == 'present'
+
+- name: Run service '{{ service }}' (Attached mode)
+  shell: |
+    cd "{{ remote_services_dir_with_prefix }}/{{ remote_service_dir_with_prefix }}"
+    docker-compose up
+  when: docker_compose_run_action == 'present-and-wait-until-end'
+
+- name: Wait {{ docker_compose_run_timeout_after.seconds }} seconds before release
+  pause:
+    seconds: "{{ docker_compose_run_timeout_after.seconds }}"
+    prompt: "{{ docker_compose_run_timeout_after.message }}"
+  when: docker_compose_run_timeout_after.seconds > 0

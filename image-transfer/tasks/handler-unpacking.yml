@@ -1,0 +1,26 @@
+---
+
+- name: Распаковка архива '{{ image_transfer_remote_path }}/{{ current_image_replace_name }}.tgz' на удалённом хосте.
+  unarchive:
+    src: '{{ image_transfer_remote_path }}/{{ current_image_replace_name }}.tgz'
+    dest: '{{ image_transfer_remote_path }}'
+    remote_src: yes
+
+- name: Удаление существующего docker images '{{ current_image }}'
+  shell: |
+    docker image rm "{{ current_image }}"
+  when: image_transfer_force|bool == true
+
+- name: Загрузка docker image из файлa '{{ image_transfer_remote_path }}/{{ current_image_replace_name }}' на удалённом хосте.
+  shell: |
+    docker image load --input='{{ image_transfer_remote_path }}/{{ current_image_replace_name }}'
+
+- name: Удаление распакованного docker image '{{ image_transfer_remote_path }}/{{ current_image_replace_name }}' на удалённом хосте.
+  file:
+    path: '{{ image_transfer_remote_path }}/{{ current_image_replace_name }}'
+    state: absent
+
+# - name: Удаление директории '{{ image_transfer_remote_path }}' на удалённом хосте.
+#   file:
+#     path: '{{ image_transfer_remote_path }}'
+#     state: absent

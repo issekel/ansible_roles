@@ -1,0 +1,39 @@
+---
+
+### Выполняется на локальном хосте
+- block:
+
+  - name: Проверка, есть ли архив '{{ image_transfer_local_path }}/{{ current_image_replace_name }}.tgz' на локальном хосте.
+    stat:
+      path: "{{ image_transfer_local_path }}/{{ current_image_replace_name }}.tgz"
+    register: local_archive_exist
+    changed_when: not local_archive_exist.stat.exists
+
+  # Выполняется, если требуемого архива на локальном хосте нет
+  - block:
+    - name: Создать директорию "{{ image_transfer_local_path }}" на локальном хосте.
+      file:
+        path: "{{ image_transfer_local_path }}"
+        state: directory
+        recurse: yes
+
+    - name: Загрузка '{{ current_image }}' из репозитория на локальный хост".
+      shell: |
+        docker pull "{{ current_image }}"
+
+    - name: Сохранение '{{ current_image }}' в файл '{{ image_transfer_local_path }}/{{ current_image_replace_name }}' на локальном хосте.
+      shell: |
+        docker image save --output="{{ image_transfer_local_path }}/{{ current_image_replace_name }}" "{{ current_image }}"
+
+    - name: Сжатие '{{ image_transfer_local_path }}/{{ current_image_replace_name }}' в архив на локальном хосте.
+      archive:
+        path: "{{ image_transfer_local_path }}/{{ current_image_replace_name }}"
+        dest: "{{ image_transfer_local_path }}/{{ current_image_replace_name }}.tgz"
+        force_archive: yes
+        remove: yes
+    when: not local_archive_exist.stat.exists
+
+  delegate_to: 127.0.0.1
+  become: no
+  run_once: true
+###

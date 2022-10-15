@@ -1,0 +1,16 @@
+{
+    "log-driver": "json-file",
+    "log-opts": {
+        "max-size": "100m"
+    },
+    "storage-driver": "{{ docker_daemon_storage_driver }}",
+    "exec-opts": ["native.cgroupdriver=systemd"]
+{% if docker_daemon_default_address_pools_base|length > 0 and docker_daemon_default_address_pools_size|length > 0 %}
+    ,
+    "default-address-pools": [ {"base":"{{ docker_daemon_default_address_pools_base }}", "size":{{ docker_daemon_default_address_pools_size }}} ]
+{% endif %}
+{% if docker_daemon_data_root|length > 0 %}
+    ,
+    "data-root": "{{ docker_daemon_data_root }}"
+{% endif %}
+}

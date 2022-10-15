@@ -1,0 +1,30 @@
+---
+
+- name: Set remote service/services dir
+  set_fact:
+    remote_service_dir_with_prefix: "{{ service }}"
+    remote_services_dir_with_prefix: "{{ docker_compose_run_remote_services_dir }}"
+  when: docker_compose_run_remote_service_prefix | length == 0
+
+- name: Add prefix to remote service/services dir if needed
+  set_fact:
+    remote_service_dir_with_prefix: "{{ service }}-{{ docker_compose_run_remote_service_prefix }}"
+    remote_services_dir_with_prefix: "{{ docker_compose_run_remote_services_dir }}-{{ docker_compose_run_remote_service_prefix }}"
+  when: docker_compose_run_remote_service_prefix | length > 0
+
+
+- name: "Create main directory for all docker-compose services"
+  file:
+    path: "{{ remote_services_dir_with_prefix }}"
+    state: directory
+    owner: "root"
+
+
+- include_tasks: action-absent.yml
+  when: docker_compose_run_action == 'absent' or docker_compose_run_action == 'absent-and-delete'
+
+- include_tasks: action-present.yml
+  when: docker_compose_run_action == 'present' or
+        docker_compose_run_action == 'present-and-wait-until-end' or
+        docker_compose_run_action == 'copy' or
+        docker_compose_run_action == 'pull'

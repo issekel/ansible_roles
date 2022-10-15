@@ -1,0 +1,33 @@
+---
+
+- name: "Get directory list for individual configuration for '{{ service }}' service"
+  find:
+    path: "{{ docker_compose_run_local_individual_services_dir }}/{{ inventory_hostname }}/{{ service }}"
+    recurse: yes
+    file_type: directory
+  register: find_directory_result
+  delegate_to: 127.0.0.1
+  become: no
+
+- name: Create directories for individual configuration for '{{ service }}'
+  file:
+    path: "{{ docker_compose_run_remote_services_dir }}/{{ item['path'] | regex_replace('^' ~ docker_compose_run_local_individual_services_dir | regex_replace('^./', '') ~ '/' ~ inventory_hostname ~ '/', '') }}"
+    state: directory
+  loop: "{{ find_directory_result.files }}"
+
+- name: "Get list files for individual configuration for '{{ service }}' service"
+  find:
+    path: "{{ docker_compose_run_local_individual_services_dir }}/{{ inventory_hostname }}/{{ service }}"
+    recurse: yes
+    file_type: file
+  register: find_file_result
+  delegate_to: 127.0.0.1
+  become: no
+
+- name: "Copy files for individual configuration for '{{ service }}' service"
+  copy:
+    src: "{{ item['path'] }}"
+    dest: "{{ docker_compose_run_remote_services_dir }}/{{ item['path'] | regex_replace('^' ~ docker_compose_run_local_individual_services_dir | regex_replace('^./', '') ~ '/' ~ inventory_hostname ~ '/', '')}}"
+    owner: "root"
+    mode: "preserve"
+  loop: "{{ find_file_result.files }}"

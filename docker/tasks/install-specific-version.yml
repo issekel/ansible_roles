@@ -1,0 +1,31 @@
+---
+
+- name: Unhold docker package
+  file:
+    path: /etc/apt/preferences.d/docker
+    state: absent
+
+- name: Install docker-ce-cli package
+  apt:
+    name:
+      - docker-ce-cli={{ docker_package_version }}
+    force: yes
+
+- name: Install docker-ce package
+  apt:
+    name:
+      - docker-ce={{ docker_package_version }}
+    force: yes
+
+- name: Hold docker packages
+  lineinfile:
+    path: /etc/apt/preferences.d/docker
+    create: yes
+    line: |-
+      Package: docker-ce
+      Pin: version {{ docker_package_version }}
+      Pin-Priority: 1000
+
+      Package: docker-ce-cli
+      Pin: version {{ docker_package_version }}
+      Pin-Priority: 1000

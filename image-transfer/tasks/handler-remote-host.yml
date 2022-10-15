@@ -1,0 +1,75 @@
+---
+
+- name: Замена символов '/' и ':' на '_'
+  set_fact:
+    current_image_replace_name: "{{ current_image | replace('/', '_') | replace(':', '_') }}"
+  run_once: true
+
+
+### TODO: Реализовать принудительную загрузку docker images
+# image_transfer_force: true
+
+
+- name: Проверка, есть ли docker image '{{ current_image }}' на удалённом хосте
+  shell: |
+    docker images --format '{{ format_tempate }}' --filter 'reference={{ current_image }}'
+  vars:
+    format_tempate: !unsafe '{{.Repository}}:{{.Tag}}'
+  register: remote_image_exists
+  changed_when: remote_image_exists.stdout|length == 0
+
+
+- name: Проверка, есть ли архив '{{ image_transfer_remote_path }}/{{ current_image_replace_name }}.tgz' на удалённом хосте.
+  stat:
+    path: '{{ image_transfer_remote_path }}/{{ current_image_replace_name }}.tgz'
+  register: remote_tgz_exists
+  changed_when: not remote_tgz_exists.stat.exists
+  when:
+    - remote_image_exists.stdout|length == 0
+
+
+- name: Создание директории "{{ image_transfer_remote_path }}" на удалённом хосте.
+  file:
+    path: "{{ image_transfer_remote_path }}"
+    state: directory
+    recurse: yes
+  become: no
+  when:
+    - remote_image_exists.stdout|length == 0
+    - not remote_tgz_exists.stat.exists
+
+
+### Выполняется, если задан кэширующий хост
+- name: Подключение файла 'handler-cache-host.yml', если задан кэширующий хост.
+  include_tasks: handler-cache-host.yml
+  when:
+    - image_transfer_cache_host|length > 0
+    - remote_image_exists.stdout|length == 0
+    - not remote_tgz_exists.stat.exists
+
+### ^^^ Здесь появляется архив с docker image ^^^
+
+
+### Выполняется, если не задан кэширующий хост
+- block:
+  - name: Загружает docker images на локальный хост
+    include_tasks: handler-local-host.yml
+
+  - name: Копирование '{{ image_transfer_local_path }}/{{ current_image_replace_name }}.tgz' на удалённый хост.
+    copy:
+      src: "{{ image_transfer_local_path }}/{{ current_image_replace_name }}.tgz"
+      dest: "{{ image_transfer_remote_path }}/{{ current_image_replace_name }}.tgz"
+
+  when:
+    - image_transfer_cache_host|length == 0
+    - remote_image_exists.stdout|length == 0
+    - not remote_tgz_exists.stat.exists
+
+### ^^^ Здесь появляется архив с docker image ^^^
+
+
+- name: Подключение файла 'handler-unpacking.yml'.
+  include_tasks: handler-unpacking.yml
+  when:
+    - remote_image_exists.stdout|length == 0
+
