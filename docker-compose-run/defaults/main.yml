@@ -25,12 +25,16 @@ docker_compose_run_remote_service_prefix: ""
 docker_compose_run_action: present
 
 
-docker_compose_run_registry_hostname: ""
-docker_compose_run_registry_username: ""
-docker_compose_run_registry_password: ""
-docker_compose_run_registry_login_befor: no
-docker_compose_run_registry_logout_after: no
-
+# docker_compose_run_registry_hostname: ""
+# docker_compose_run_registry_username: ""
+# docker_compose_run_registry_password: ""
+#docker_compose_run_registry_login_befor: true
+#docker_compose_run_registry_logout_after: true
+docker_compose_run_registry_hostname: "harbor.com"
+docker_compose_run_registry_username: "user"
+docker_compose_run_registry_password: "password"
+# docker_compose_run_registry_username: "robot$netvision"
+# docker_compose_run_registry_password: "uuDzs3fbLAh6GmbzExAe6DmKdyjRMzEe"
 
 # Пауза в секундах перед выполнением роли
 docker_compose_run_timeout_befor:
@@ -44,4 +48,5 @@ docker_compose_run_timeout_after:
 
 # Передавать или нет docker images с локального хоста на удалённый.
 # Позволяет отказаться от использования доступа удалённого хоста к офисному docker registry.
-docker_compose_run_transfer_images: false
+# docker_compose_run_transfer_images: true
+inventory_transfer_images: true

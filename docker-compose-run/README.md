@@ -74,8 +74,8 @@ docker_compose_run_timeout_after:
 Передавать или нет docker images с локального хоста на удалённый. Позволяет отказаться от авторизации в приватном docker registry на удалённом хосте. Используется внешняя роль
 image-transfer:
 
-    docker_compose_run_transfer_images: false
-
+    #docker_compose_run_transfer_images: false
+    inventory_transfer_images: yes
 
 
 

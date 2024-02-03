@@ -1,8 +1,8 @@
 ---
 
-- name: Замена символов '/' и ':' на '_'
+- name: Замена символов '/' и ':' на '_' + ansible_architecture
   set_fact:
-    current_image_replace_name: "{{ current_image | replace('/', '_') | replace(':', '_') }}"
+    current_image_replace_name: "{{ current_image | replace('/', '_') | replace(':', '_') }}_{{ ansible_architecture }}"
   run_once: true
 
 
@@ -25,7 +25,7 @@
   register: remote_tgz_exists
   changed_when: not remote_tgz_exists.stat.exists
   when:
-    - remote_image_exists.stdout|length == 0
+    - remote_image_exists.stdout|length == 0 or image_transfer_force|bool == true
 
 
 - name: Создание директории "{{ image_transfer_remote_path }}" на удалённом хосте.
@@ -62,8 +62,8 @@
 
   when:
     - image_transfer_cache_host|length == 0
-    - remote_image_exists.stdout|length == 0
-    - not remote_tgz_exists.stat.exists
+    - remote_image_exists.stdout|length == 0 or image_transfer_force|bool == true
+    - not remote_tgz_exists.stat.exists or image_transfer_force|bool == true
 
 ### ^^^ Здесь появляется архив с docker image ^^^
 

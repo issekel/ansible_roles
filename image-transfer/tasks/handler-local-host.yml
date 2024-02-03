@@ -9,6 +9,34 @@
     register: local_archive_exist
     changed_when: not local_archive_exist.stat.exists
 
+  # Если архива нет, проверить имейдж и архитектуру
+  - block:
+    - name: Проверка, есть ли docker image '{{ current_image }}' на локальном хосте
+      shell: |
+        docker images --format '{{ format_tempate }}' --filter 'reference={{ current_image }}'
+      vars:
+        format_tempate: !unsafe '{{.Repository}}:{{.Tag}}'
+      register: local_image_exists
+      changed_when: local_image_exists.stdout|length == 0
+
+    - name: Проверка архитектуры '{{ current_image }}' на локальном хосте
+      shell: |
+        docker image inspect {{ current_image }} --format '{{ format_inspect }}'
+      vars:
+        format_inspect: !unsafe '{{.Architecture}}'
+      register: local_image_architecture
+      when: local_image_exists.stdout|length > 0
+
+    - name: Архитектура локального имейджа'{{ current_image }}'
+      ansible.builtin.debug:
+        var=local_image_architecture.stdout
+
+    - name: Целевая архитектура
+      ansible.builtin.debug:
+        var=ansible_architecture
+
+    when: not local_archive_exist.stat.exists
+
   # Выполняется, если требуемого архива на локальном хосте нет
   - block:
     - name: Создать директорию "{{ image_transfer_local_path }}" на локальном хосте.
@@ -17,9 +45,21 @@
         state: directory
         recurse: yes
 
-    - name: Загрузка '{{ current_image }}' из репозитория на локальный хост".
+    # Выполняется, если требуемого имейджа на локальном хосте нет или архитектура отличается от целевой
+    - name: Загрузка "{{ current_image }}"-amd64 из репозитория на локальный хост".
       shell: |
-        docker pull "{{ current_image }}"
+        docker pull "{{ current_image }}" --platform=amd64
+      when:
+        - ansible_architecture == "x86_64" or ansible_architecture == "amd64"
+        - local_image_exists.stdout|length == 0 or local_image_architecture.stdout != "amd64"
+
+    - name: Загрузка "{{ current_image }}" arm64 из репозитория на локальный хост".
+      shell: |
+        docker pull "{{ current_image }}" --platform=arm64
+      when:
+        - ansible_architecture == "aarch64" or ansible_architecture == "arm64"
+        - local_image_exists.stdout|length == 0 or local_image_architecture.stdout != "arm64"
+
 
     - name: Сохранение '{{ current_image }}' в файл '{{ image_transfer_local_path }}/{{ current_image_replace_name }}' на локальном хосте.
       shell: |

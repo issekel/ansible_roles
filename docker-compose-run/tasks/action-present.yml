@@ -12,7 +12,7 @@
     path: "{{ docker_compose_run_local_services_dir }}/{{ service }}"
   register: stat_local_service_dir
   delegate_to: 127.0.0.1
-  become: no
+  become: false
 
 - name: Exit if service '{{ service }}' not found
   fail:
@@ -36,7 +36,7 @@
     recurse: yes
   register: find_list_local_dirs
   delegate_to: 127.0.0.1
-  become: no
+  become: false
 
 # - name: Print 'find_list_local_dirs'
 #   debug:
@@ -49,7 +49,7 @@
 
 - name: Parsing path find_list_local_dirs and save only sub-directories in service '{{ service }}'
   set_fact:
-    list_service_sub_dirs: "{{ list_service_sub_dirs }} + [ \"{{ item.path | replace( local_services_dir_trimmed + '/', '' ) | replace( service + '/', '' ) }}\" ]"
+    list_service_sub_dirs: "{{ list_service_sub_dirs + [item.path | replace( local_services_dir_trimmed + '/', '' ) | replace( service + '/', '' )] }}"
   loop: "{{ find_list_local_dirs.files }}"
 
 # - name: Print 'list_service_sub_dirs'
@@ -79,7 +79,7 @@
     recurse: yes
   register: find_list_local_files
   delegate_to: 127.0.0.1
-  become: no
+  become: false
 
 # - name: Print 'find_list_local_files'
 #   debug:
@@ -92,9 +92,8 @@
 
 - name: Parsing path find_list_local_files for '{{ service }}'
   set_fact:
-    list_service_files: "{{ list_service_files }} + [ \"{{ item.path | replace( local_services_dir_trimmed + '/', '' ) | replace( service + '/', '' ) }}\" ]"
+    list_service_files: "{{ list_service_files + [item.path | replace( local_services_dir_trimmed + '/', '' ) | replace( service + '/', '' )] }}"
   loop: "{{ find_list_local_files.files }}"
-
 # - name: Print 'list_service_files'
 #   debug:
 #     msg: "{{ item }}"
@@ -108,7 +107,7 @@
     owner: "root"
     mode: "preserve"
   loop: "{{ list_service_files }}"
-
+  register: copy_template_result
 
 
 # Блок для передачи docker images с локального хоста на удалённый.
@@ -125,7 +124,7 @@
 
     - name: Получение списка имиджей из docker-compose.yml
       shell: |
-        cat "{{ directory_with_docker_compose_file }}/docker-compose.yml" | grep -e '^[[:blank:]]*[^[:blank:]#;]' | grep -e ' image: ' | awk '{print $2}' | uniq
+        cat "{{ directory_with_docker_compose_file }}/docker-compose.yml" | grep -e '^[[:blank:]]*[^[:blank:]#;]' | grep -e ' image: ' | awk '{print $2}' | sort -u
       register: docker_compose_file_images_list
       changed_when: false
 
@@ -136,7 +135,8 @@
         image_transfer_list: "{{ docker_compose_file_images_list.stdout_lines }}"
 
   when:
-    - docker_compose_run_transfer_images|bool == true
+    # - docker_compose_run_transfer_images|bool == true or
+    - inventory_transfer_images in [('yes'), ('true')] or inventory_transfer_images|bool == true
     - docker_compose_run_action == 'present' or
       docker_compose_run_action == 'present-and-wait-until-end' or
       docker_compose_run_action == 'pull'
@@ -145,7 +145,9 @@
   shell: |
     cd "{{ remote_services_dir_with_prefix }}/{{ remote_service_dir_with_prefix }}"
     docker-compose pull
-  when: docker_compose_run_action == 'pull'
+  when:
+    - docker_compose_run_action == 'pull'
+    - inventory_transfer_images in [('no'), ('false')] or inventory_transfer_images|bool == false
 
 - name: Run service '{{ service }}' (Detached mode)
   shell: |

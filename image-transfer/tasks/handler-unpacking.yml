@@ -9,7 +9,9 @@
 - name: Удаление существующего docker images '{{ current_image }}'
   shell: |
     docker image rm "{{ current_image }}"
-  when: image_transfer_force|bool == true
+  when:
+    - image_transfer_force|bool == true
+    - remote_image_exists.stdout|length > 0
 
 - name: Загрузка docker image из файлa '{{ image_transfer_remote_path }}/{{ current_image_replace_name }}' на удалённом хосте.
   shell: |
@@ -20,7 +22,7 @@
     path: '{{ image_transfer_remote_path }}/{{ current_image_replace_name }}'
     state: absent
 
-# - name: Удаление директории '{{ image_transfer_remote_path }}' на удалённом хосте.
-#   file:
-#     path: '{{ image_transfer_remote_path }}'
-#     state: absent
+- name: Удаление директории '{{ image_transfer_remote_path }}' на удалённом хосте.
+  file:
+    path: '{{ image_transfer_remote_path }}'
+    state: absent

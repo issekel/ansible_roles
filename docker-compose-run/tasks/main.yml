@@ -1,4 +1,27 @@
 ---
+- name: Test private registry availability
+  uri:
+    url: "https://{{ docker_compose_run_registry_hostname }}"
+    return_content: no
+    status_code: 200
+  register: private_registry_status
+  ignore_errors: true
+
+# - name: Check that the docker crt exists
+#   stat:
+#     path: /etc/docker/certs.d/{{ docker_compose_run_registry_hostname }}/{{ docker_compose_run_registry_hostname }}.crt
+#   register: stat_result
+#   ignore_errors: true
+#   failed_when: not stat_result.stat.exists
+
+- name: Set variable based on condition
+  set_fact:
+    # inventory_transfer_images: "{{ true if private_registry_status.failed or not stat_result.stat.exists else false }}"
+    inventory_transfer_images: "{{ true if private_registry_status.failed else false }}"
+
+- ansible.builtin.debug:
+    # var=private_registry_status.failed,stat_result.failed,inventory_transfer_images
+    var=private_registry_status.failed,inventory_transfer_images
 
 - name: Login to private {{ docker_compose_run_registry_hostname }} registry
   docker_login:
@@ -6,8 +29,10 @@
     username: "{{ docker_compose_run_registry_username }}"
     password: "{{ docker_compose_run_registry_password }}"
     reauthorize: yes
-  when: (docker_compose_run_registry_username != "") and (docker_compose_run_registry_password != "") and (docker_compose_run_registry_login_befor)
-
+  when:
+    - docker_compose_run_registry_username != ""
+    - docker_compose_run_registry_password != ""
+    - inventory_transfer_images in [('no'), ('false')] or inventory_transfer_images|bool == false
 
 - include_tasks: services.yml
   loop: "{{ docker_compose_run_services_list }}"
@@ -20,5 +45,7 @@
     registry: "{{ docker_compose_run_registry_hostname }}"
     username: "{{ docker_compose_run_registry_username }}"
     state: absent
-  when: (docker_compose_run_registry_hostname != "") and (docker_compose_run_registry_username != "") and (docker_compose_run_registry_logout_after)
-
+  when:
+    - docker_compose_run_registry_hostname != ""
+    - docker_compose_run_registry_username != ""
+    - inventory_transfer_images in [('no'), ('false')] or inventory_transfer_images|bool == false
